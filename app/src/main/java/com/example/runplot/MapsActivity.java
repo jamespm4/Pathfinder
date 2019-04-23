@@ -84,8 +84,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             public void onSuccess(Location location) {
                                 // Got last known location. In some rare situations this can be null.
                                 if (location != null) {
-                                    mMap.moveCamera(CameraUpdateFactory.newLatLng(
-                                            new LatLng(location.getLatitude(), location.getLongitude())));
+                                    mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(
+                                            new LatLng(location.getLatitude(), location.getLongitude()), 17.0f));
                                 }
                             }
                         });
