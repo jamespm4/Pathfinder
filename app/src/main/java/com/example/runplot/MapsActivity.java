@@ -9,6 +9,7 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.widget.TextView;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
@@ -19,12 +20,25 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 
+import java.math.RoundingMode;
 import java.security.Security;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
+
+/*
+ * Good names for this app:
+ * Pathfinder
+ * Trailblazer
+ *
+ */
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -35,6 +49,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private boolean locationAccessed = false;
 
     private final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 420;
+
+    private List<Marker> nodes = new ArrayList<>();
+    private PolylineOptions route = new PolylineOptions().color(0xff0c76ff).width(14f);
+
+    private double EARTH_RADIUS_MILES = 3958.756;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,13 +90,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 mMap.setMyLocationEnabled(true);
                 locationAccessed = true;
             } catch (SecurityException e) {
-                //I don't know
+                //The app failed to enable the myLocation layer for Google Maps.
+                //This really should never happen
+                //Just do nothing
             }
         }
         //mMap.getUiSettings().setMyLocationButtonEnabled(true);
+
+        //The block of code below is just here so that the app zooms in on your location when it starts up.
         if (locationAccessed) {
-            //Location myLocation = mMap.getMyLocation();
-            //mMap.moveCamera(CameraUpdateFactory.newLatLng(new LatLng(myLocation.getLatitude(), myLocation.getLongitude())));
             try {
                 fusedLocationClient.getLastLocation()
                         .addOnSuccessListener(this, new OnSuccessListener<Location>() {
@@ -90,15 +112,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             }
                         });
             } catch (SecurityException e) {
-                //I don't know
+                //The phone couldn't access your location even though you gave it permission to.
+                //I don't know, do nothing? I guess?
             }
         }
 
+        //Old Test Code VVV
         // Add a marker in Sydney and move the camera
-        LatLng sydney = new LatLng(-34, 151);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
+        //LatLng sydney = new LatLng(-34, 151);
+        //mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
-
+        /*
         mMap.addMarker(new MarkerOptions()
                 .position(new LatLng(0, 0))
                 .title("Yeet")
@@ -106,18 +130,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .alpha(0.8f)
                 .draggable(true)
                 .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+        */
 
-
+        //Add a marker when the map is clicked.
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
             public void onMapClick(LatLng point) {
-                mMap.addMarker(new MarkerOptions()
+                Marker marker = mMap.addMarker(new MarkerOptions()
                         .position(point)
                         .rotation(30)
-                        .alpha(0.8f)
+                        .alpha(0.75f)
                         .draggable(true)
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
                 mMap.animateCamera(CameraUpdateFactory.newLatLng(point), 250, null);
+                nodes.add(marker);
+                route.add(point);
+                mMap.addPolyline(route);
+
+                NumberFormat nf = NumberFormat.getNumberInstance();
+                nf.setMaximumFractionDigits(2);
+                nf.setRoundingMode(RoundingMode.HALF_UP);
+                String dist = nf.format(calculateDistance());
+
+                TextView textView = findViewById(R.id.txt_distance);
+                textView.setText(dist + " miles");
             }
         });
 
@@ -159,6 +195,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             // other 'case' lines to check for other
             // permissions this app might request.
         }
+    }
+
+    private double calculateDistance() {
+        int length = nodes.size();
+        if (length <= 1) {
+            return 0.0;
+        }
+        double lastLat = Math.toRadians(nodes.get(0).getPosition().latitude);
+        double lastLong = Math.toRadians(nodes.get(0).getPosition().longitude);
+        double newLat, newLong;
+        double arc;
+        double distance = 0.0;
+        for (int n = 1; n < length; n++) {
+            newLat = Math.toRadians(nodes.get(n).getPosition().latitude);
+            newLong = Math.toRadians(nodes.get(n).getPosition().longitude);
+            arc = Math.acos((Math.sin(lastLat) * Math.sin(newLat)) + (Math.cos(lastLat) * Math.cos(newLat) * Math.cos(newLong - lastLong)));
+            distance += arc * EARTH_RADIUS_MILES;
+            lastLat = newLat;
+            lastLong = newLong;
+        }
+        return distance;
     }
 
 }
