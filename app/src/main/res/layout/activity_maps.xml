@@ -30,6 +30,19 @@
             android:textSize="48sp"
             app:fontFamily="sans-serif-smallcaps" />
 
+        <TextView
+            android:id="@+id/txt_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            android:layout_centerHorizontal="true"
+            android:paddingTop="80dp"
+            android:text="00:00"
+            android:textColor="@color/colorAccent"
+            android:textSize="64sp"
+            android:visibility="invisible"
+            app:fontFamily="sans-serif-smallcaps" />
+
         <ImageButton
             android:id="@+id/btn_add"
             android:layout_width="wrap_content"
@@ -73,9 +86,31 @@
             android:layout_alignParentBottom="true"
             android:layout_marginRight="12dp"
             android:layout_marginBottom="50dp"
-            android:alpha="0.5"
+            android:alpha="1.0"
             android:background="#00000000"
             android:src="@drawable/confirm" />
+
+        <TextView
+            android:id="@+id/txt_info1"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="45dp"
+            android:text=""
+            android:textSize="18sp" />
+
+        <TextView
+            android:id="@+id/txt_info2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="22dp"
+            android:text=""
+            android:textSize="18sp" />
+
+
     </RelativeLayout>
 
 </FrameLayout>

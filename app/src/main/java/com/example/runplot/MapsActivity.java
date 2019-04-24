@@ -57,13 +57,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private List<Marker> nodes = new ArrayList<>();
     private PolylineOptions route = new PolylineOptions().geodesic(true).color(0xff1254dc).width(14f);
     private Polyline pathLine;
+    private Marker tempMarker;
+    private Marker insertMarker;
 
     private double EARTH_RADIUS_MILES = 3958.756;
 
     private int drawMode = 0;
     // 0 = add nodes normally
     // 1 = erase nodes
-    // 2 = insert nodes after a selected node?
+    // 2 = insert nodes before a selected node
+    private int awaiting = 0;
+    // 0 = awaiting no action
+    // 1 = awaiting a marker click
+    // 2 = awaiting a map click
+    // This variable should only be nonzero if drawMode is 2.
 
     private float selectedAlpha = 1.0f;
     private float unselectedAlpha = 0.5f;
@@ -97,6 +104,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         final ImageButton addButton = findViewById(R.id.btn_add);
         final ImageButton eraseButton = findViewById(R.id.btn_erase);
+        final ImageButton insertButton = findViewById(R.id.btn_insert);
+        final ImageButton confirmButton = findViewById(R.id.btn_confirm);
+        final TextView textOne = findViewById(R.id.txt_info1);
+        final TextView textTwo = findViewById(R.id.txt_info2);
 
         mMap = googleMap;
         //MapsInitializer.initialize(Context);
@@ -152,7 +163,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
             public void onMapClick(LatLng point) {
-                if (drawMode == 0) {
+
+                if (drawMode == 0) { //regular draw
                     Marker marker = mMap.addMarker(new MarkerOptions()
                             .position(point)
                             .rotation(30)
@@ -168,6 +180,42 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     pathLine = mMap.addPolyline(route);
 
                     updateDistance();
+
+                } else if (drawMode == 2) { //insert
+                    if (nodes.size() > 0) {
+                        if (awaiting == 0) {
+                            tempMarker = mMap.addMarker(new MarkerOptions()
+                                    .position(point)
+                                    .rotation(-30)
+                                    .alpha(0.75f)
+                                    .draggable(true)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)));
+                            textOne.setText("Select a marker");
+                            textTwo.setText("to insert this stop behind.");
+                            awaiting = 1;
+                        } else if (awaiting == 2) {
+                            //The user already clicked a marker, and is now clicking where the new marker should be
+                            Marker newMarker = mMap.addMarker(new MarkerOptions()
+                                    .position(point)
+                                    .rotation(30)
+                                    .alpha(0.75f)
+                                    .draggable(true)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+                            for (int n = 0; n < nodes.size(); n++) {
+                                if (nodes.get(n).equals(insertMarker)) {
+                                    nodes.add(n, newMarker);
+                                    break;
+                                }
+                            }
+                            if (tempMarker != null) {
+                                tempMarker.remove();
+                            }
+                            awaiting = 0;
+                            refreshRoute();
+                            textOne.setText("");
+                            textTwo.setText("");
+                        }
+                    }
                 }
             }
         });
@@ -175,7 +223,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //Add or remove a marker when one is clicked.
         mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
             public boolean onMarkerClick(Marker marker) {
-                if (drawMode == 0) {
+                if (drawMode == 0) { //regular draw
                     nodes.add(marker);
                     route.add(marker.getPosition());
                     mMap.animateCamera(CameraUpdateFactory.newLatLng(marker.getPosition()), 250, null);
@@ -184,7 +232,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                     pathLine = mMap.addPolyline(route);
                     updateDistance();
-                } else if (drawMode == 1) {
+
+                } else if (drawMode == 1) { //erase
                     for (int n = nodes.size() - 1; n >= 0; n--) {
                         if (marker.equals(nodes.get(n))) {
                             nodes.remove(n);
@@ -192,6 +241,43 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                     marker.remove();
                     refreshRoute();
+
+                } else if (drawMode == 2) { //insert
+                    if (!(marker.equals(tempMarker))) {
+                        if (awaiting == 0) {
+                            LatLng spot = marker.getPosition();
+                            tempMarker = mMap.addMarker(new MarkerOptions()
+                                    .position(spot)
+                                    .rotation(-30)
+                                    .alpha(0.75f)
+                                    .draggable(true)
+                                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)));
+                            insertMarker = marker;
+                            textOne.setText("Insert a stop");
+                            textTwo.setText("behind this marker.");
+                            awaiting = 2;
+                        } else if (awaiting == 1) {
+                            for (int n = 0; n < nodes.size(); n++) {
+                                if (marker.equals(nodes.get(n))) {
+                                    Marker newMarker = mMap.addMarker(new MarkerOptions()
+                                            .position(tempMarker.getPosition())
+                                            .rotation(30)
+                                            .alpha(0.75f)
+                                            .draggable(true)
+                                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+                                    nodes.add(n, newMarker);
+                                    break;
+                                }
+                            }
+                            if (tempMarker != null) {
+                                tempMarker.remove();
+                            }
+                            awaiting = 0;
+                            refreshRoute();
+                            textOne.setText("");
+                            textTwo.setText("");
+                        }
+                    }
                 }
                 return true;
             }
@@ -211,20 +297,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
-
+        //Code that runs when the pencil button is pressed.
         addButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                drawMode = 0;
-                eraseButton.setAlpha(unselectedAlpha);
-                addButton.setAlpha(selectedAlpha);
+                if (awaiting == 0) {
+                    drawMode = 0;
+                    eraseButton.setAlpha(unselectedAlpha);
+                    insertButton.setAlpha(unselectedAlpha);
+                    addButton.setAlpha(selectedAlpha);
+                }
             }
         });
 
+        //Code that runs when the eraser button is pressed.
         eraseButton.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
-                drawMode = 1;
-                addButton.setAlpha(unselectedAlpha);
-                eraseButton.setAlpha(selectedAlpha);
+                if (awaiting == 0) {
+                    drawMode = 1;
+                    addButton.setAlpha(unselectedAlpha);
+                    insertButton.setAlpha(unselectedAlpha);
+                    eraseButton.setAlpha(selectedAlpha);
+                }
+            }
+        });
+
+        //Code that runs when the insert button is pressed.
+        insertButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                if (nodes.size() > 0) {
+                    drawMode = 2;
+                    addButton.setAlpha(unselectedAlpha);
+                    eraseButton.setAlpha(unselectedAlpha);
+                    insertButton.setAlpha(selectedAlpha);
+                }
             }
         });
     }
@@ -315,5 +420,4 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         TextView textView = findViewById(R.id.txt_distance);
         textView.setText(dist + " miles");
     }
-
 }
