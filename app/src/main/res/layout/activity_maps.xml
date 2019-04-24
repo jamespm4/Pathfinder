@@ -79,6 +79,18 @@
             android:src="@drawable/insert" />
 
         <ImageButton
+            android:id="@+id/btn_toggle_run"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginRight="12dp"
+            android:layout_marginBottom="130dp"
+            android:alpha="1.0"
+            android:background="#00000000"
+            android:src="@drawable/pause" />
+
+        <ImageButton
             android:id="@+id/btn_confirm"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
