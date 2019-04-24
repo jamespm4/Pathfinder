@@ -9,6 +9,9 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import com.google.android.gms.location.FusedLocationProviderClient;
@@ -22,6 +25,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -51,10 +55,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 420;
 
     private List<Marker> nodes = new ArrayList<>();
-    private PolylineOptions route = new PolylineOptions().color(0xff0c76ff).width(14f);
+    private PolylineOptions route = new PolylineOptions().geodesic(true).color(0xff1254dc).width(14f);
+    private Polyline pathLine;
 
     private double EARTH_RADIUS_MILES = 3958.756;
 
+    private int drawMode = 0;
+    // 0 = add nodes normally
+    // 1 = erase nodes
+    // 2 = insert nodes after a selected node?
+
+    private float selectedAlpha = 1.0f;
+    private float unselectedAlpha = 0.5f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,6 +94,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
      */
     @Override
     public void onMapReady(GoogleMap googleMap) {
+
+        final ImageButton addButton = findViewById(R.id.btn_add);
+        final ImageButton eraseButton = findViewById(R.id.btn_erase);
+
         mMap = googleMap;
         //MapsInitializer.initialize(Context);
 
@@ -136,29 +152,84 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
             @Override
             public void onMapClick(LatLng point) {
-                Marker marker = mMap.addMarker(new MarkerOptions()
-                        .position(point)
-                        .rotation(30)
-                        .alpha(0.75f)
-                        .draggable(true)
-                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
-                mMap.animateCamera(CameraUpdateFactory.newLatLng(point), 250, null);
-                nodes.add(marker);
-                route.add(point);
-                mMap.addPolyline(route);
+                if (drawMode == 0) {
+                    Marker marker = mMap.addMarker(new MarkerOptions()
+                            .position(point)
+                            .rotation(30)
+                            .alpha(0.75f)
+                            .draggable(true)
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
+                    mMap.animateCamera(CameraUpdateFactory.newLatLng(point), 250, null);
+                    nodes.add(marker);
+                    route.add(point);
+                    if (pathLine != null) {
+                        pathLine.remove();
+                    }
+                    pathLine = mMap.addPolyline(route);
 
-                NumberFormat nf = NumberFormat.getNumberInstance();
-                nf.setMaximumFractionDigits(2);
-                nf.setRoundingMode(RoundingMode.HALF_UP);
-                String dist = nf.format(calculateDistance());
-
-                TextView textView = findViewById(R.id.txt_distance);
-                textView.setText(dist + " miles");
+                    updateDistance();
+                }
             }
         });
 
+        //Add or remove a marker when one is clicked.
+        mMap.setOnMarkerClickListener(new GoogleMap.OnMarkerClickListener() {
+            public boolean onMarkerClick(Marker marker) {
+                if (drawMode == 0) {
+                    nodes.add(marker);
+                    route.add(marker.getPosition());
+                    mMap.animateCamera(CameraUpdateFactory.newLatLng(marker.getPosition()), 250, null);
+                    if (pathLine != null) {
+                        pathLine.remove();
+                    }
+                    pathLine = mMap.addPolyline(route);
+                    updateDistance();
+                } else if (drawMode == 1) {
+                    for (int n = nodes.size() - 1; n >= 0; n--) {
+                        if (marker.equals(nodes.get(n))) {
+                            nodes.remove(n);
+                        }
+                    }
+                    marker.remove();
+                    refreshRoute();
+                }
+                return true;
+            }
+        });
+
+        mMap.setOnMarkerDragListener(new GoogleMap.OnMarkerDragListener() {
+            public void onMarkerDragStart(Marker marker) {
+                //yeet
+            }
+            public void onMarkerDrag(Marker marker) {
+                //yeet
+            }
+            @Override
+            public void onMarkerDragEnd(Marker marker) {
+                //Redraw route
+                refreshRoute();
+            }
+        });
+
+
+        addButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                drawMode = 0;
+                eraseButton.setAlpha(unselectedAlpha);
+                addButton.setAlpha(selectedAlpha);
+            }
+        });
+
+        eraseButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                drawMode = 1;
+                addButton.setAlpha(unselectedAlpha);
+                eraseButton.setAlpha(selectedAlpha);
+            }
+        });
     }
 
+    //Attempts to get the app permission to use location data.
     private void getLocationPermission() {
         /*
          * Request location permission, so that we can get the location of the
@@ -177,6 +248,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    //If the app doesn't already have permission to use location data,
+    //ask the user for it.
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            String[] permissions, int[] grantResults) {
@@ -197,6 +270,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+    //Returns the length of the route based on the 'nodes' list.
     private double calculateDistance() {
         int length = nodes.size();
         if (length <= 1) {
@@ -216,6 +290,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             lastLong = newLong;
         }
         return distance;
+    }
+
+    //Updates the path based on the order of the markers in the 'nodes' list.
+    private void refreshRoute() {
+        if (pathLine != null) {
+            pathLine.remove();
+        }
+        route = new PolylineOptions().geodesic(true).color(0xff1254dc).width(14f);
+        for (int n = 0; n < nodes.size(); n++) {
+            route.add(nodes.get(n).getPosition());
+        }
+        pathLine = mMap.addPolyline(route);
+        updateDistance();
+    }
+
+    //Recalculates the length of the route, and updates the UI.
+    private void updateDistance() {
+        NumberFormat nf = NumberFormat.getNumberInstance();
+        nf.setMaximumFractionDigits(2);
+        nf.setRoundingMode(RoundingMode.HALF_UP);
+        String dist = nf.format(calculateDistance());
+
+        TextView textView = findViewById(R.id.txt_distance);
+        textView.setText(dist + " miles");
     }
 
 }
