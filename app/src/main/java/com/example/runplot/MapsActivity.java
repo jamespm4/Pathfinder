@@ -128,7 +128,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //the code from here down is for the stopwatch function  VV /////////////////////////////////////////////////////////////////////////////////////////
         start = findViewById(R.id.btn_confirm);    //the confirm button is meant to be both the start/lap button.
         pause = findViewById(R.id.btn_toggle_pause); //want to change icon when one initially presses start to a sort of stop icon
-        lap = findViewById(R.id.btn_lap);
+        //lap = findViewById(R.id.btn_lap);
         time = findViewById(R.id.txt_time);
 
         listOfTimes_ArrayList = new ArrayList<>(Arrays.asList(listOfTimes));
@@ -136,7 +136,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         //listView.setAdapter(adapter);
 
-    ////////////Back to regular code/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        ////////////Back to regular code/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         mMap = googleMap;
         //sMapsInitializer.initialize(Context);
 
@@ -366,18 +366,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         start.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startTime = SystemClock.uptimeMillis();
-                handler.post(runnable);
 
                 isRunActive = !isRunActive;
-                if (isRunActive) {
+                if (isRunActive) { //start run
                     start.setImageResource(R.drawable.stop);
                     pause.setVisibility(View.VISIBLE);
                     time.setVisibility(View.VISIBLE);
-                    startTime = SystemClock.uptimeMillis();
 
+                    timeBuff = 0L;
+                    startTime = SystemClock.uptimeMillis();
+                    handler.post(runnable);
+
+                    pausePressed = false;
+                    pause.setImageResource(R.drawable.pause);
                     time.setText("00:00:00");
-                } else {
+                } else { //stop run
+                    timeBuff += MillisecTime;
+                    handler.removeCallbacks(runnable);
+
                     start.setImageResource(R.drawable.new_play2);
                     pause.setVisibility(View.INVISIBLE);
                 }
@@ -387,17 +393,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         pause.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                timeBuff += MillisecTime;
 
                 pausePressed = !pausePressed;
-                if (pausePressed) {
+                if (pausePressed) { //pause
+                    timeBuff += MillisecTime;
                     pause.setImageResource(R.drawable.play);
+                    handler.removeCallbacks(runnable);
 
-                } else {
+                } else { //unpause
+                    startTime = SystemClock.uptimeMillis();
+                    handler.post(runnable);
                     pause.setImageResource(R.drawable.pause);
                 }
 
-                handler.removeCallbacks(runnable);
+
                 //reset.setEnabled(true);
 
             }
@@ -431,7 +440,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
          */
 
     }
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //Attempts to get the app permission to use location data.
     private void getLocationPermission() {
         /*
@@ -527,10 +536,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             updateTime = timeBuff + MillisecTime;
             milisec = (int)(updateTime % 1000);
             seconds = (int)(updateTime / 1000);
-            minutes = seconds /  60;
+            minutes = seconds / 60;
             seconds = seconds % 60;
+            String mayhaps_zero;
+            if (seconds < 10L) {
+                mayhaps_zero = "0";
+            } else {
+                mayhaps_zero = "";
+            }
 
-            time.setText("" + minutes + ":" + seconds + ":" + milisec);
+            time.setText("" + minutes + ":" + mayhaps_zero + seconds + ":" + milisec);
             handler.postDelayed(this, 0);
         }
     };
