@@ -1,24 +1,30 @@
 package com.example.runplot;
 
-import android.content.Context;
 import android.content.pm.PackageManager;
 import android.location.Location;
-import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.app.FragmentActivity;
-import android.os.Bundle;
-import android.util.Log;
+import android.os.Bundle;///////////////////////////////////////////IMPORTANT IMPORT
 import android.view.View;
-import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.TextView;
+
+//in order to make the stopwatch function to work, we would need to either make a separate class for the the function, or implement it into the main activity.
+import android.os.SystemClock;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.os.Handler;
+
+import java.util.Arrays;
+
+
+
 
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapsInitializer;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
@@ -27,20 +33,17 @@ import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
-import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 
 import java.math.RoundingMode;
-import java.security.Security;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 
 /*
  * Good names for this app:
- * Pathfinder
- * Trailblazer
+ * Pathfinder? <-------------------- this one!
+ * Trailblazer?
  *
  */
 
@@ -60,7 +63,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Marker tempMarker;
     private Marker insertMarker;
 
-    private double EARTH_RADIUS_MILES = 3958.756;
+    double EARTH_RADIUS_MILES = 3958.756;
 
     private int drawMode = 0;
     // 0 = add nodes normally
@@ -75,6 +78,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private float selectedAlpha = 1.0f;
     private float unselectedAlpha = 0.5f;
 
+    //stopwatch and recorder code vv ///////////////////////////////////////////////////////////////////////////
+    TextView time;
+    ImageButton start, pause, lap, reset;
+    long MillisecTime, startTime, timeBuff, updateTime = 0L;
+    //listView = (ListView)findViewById(R.id.listView1);
+    Handler handler = new Handler();
+    private int milisec, seconds, minutes;
+    ListView listView;
+    private String[] listOfTimes = new String[] {};     //this is the individual logged time when the user presses the lap button (pause button in this case)
+    private List<String> listOfTimes_ArrayList;         //this is the list of the Array times, it updates each time a new time is lapped.
+    //ArrayAdapter<String> adapter;
+    boolean isRunActive = false;
+    boolean pausePressed = false;
+    ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,11 +102,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        getLocationPermission();
+        getLocationPermission(); //should ask for permission to access location services.
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
     }
-
 
     /**
      * Manipulates the map once available.
@@ -100,29 +117,40 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
      * installed Google Play services and returned to the app.
      */
     @Override
-    public void onMapReady(GoogleMap googleMap) {
+    public void onMapReady(final GoogleMap googleMap) { //opened map and screen displays location
 
         final ImageButton addButton = findViewById(R.id.btn_add);
         final ImageButton eraseButton = findViewById(R.id.btn_erase);
         final ImageButton insertButton = findViewById(R.id.btn_insert);
-        final ImageButton confirmButton = findViewById(R.id.btn_confirm);
         final TextView textOne = findViewById(R.id.txt_info1);
         final TextView textTwo = findViewById(R.id.txt_info2);
 
+        //the code from here down is for the stopwatch function  VV /////////////////////////////////////////////////////////////////////////////////////////
+        start = findViewById(R.id.btn_confirm);    //the confirm button is meant to be both the start/lap button.
+        pause = findViewById(R.id.btn_toggle_pause); //want to change icon when one initially presses start to a sort of stop icon
+        lap = findViewById(R.id.btn_lap);
+        time = findViewById(R.id.txt_time);
+
+        listOfTimes_ArrayList = new ArrayList<>(Arrays.asList(listOfTimes));
+        //adapter = new ArrayAdapter<>(MapsActivity.this, android.R.layout.simple_list_item_1, listOfTimes_ArrayList);
+
+        //listView.setAdapter(adapter);
+
+    ////////////Back to regular code/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
         mMap = googleMap;
-        //MapsInitializer.initialize(Context);
+        //sMapsInitializer.initialize(Context);
 
         if (locationGranted) {
             try {
                 mMap.setMyLocationEnabled(true);
-                locationAccessed = true;
+                locationAccessed = false;
             } catch (SecurityException e) {
                 //The app failed to enable the myLocation layer for Google Maps.
                 //This really should never happen
                 //Just do nothing
             }
         }
-        //mMap.getUiSettings().setMyLocationButtonEnabled(true);
+        mMap.getUiSettings().setMyLocationButtonEnabled(true);
 
         //The block of code below is just here so that the app zooms in on your location when it starts up.
         if (locationAccessed) {
@@ -141,6 +169,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             } catch (SecurityException e) {
                 //The phone couldn't access your location even though you gave it permission to.
                 //I don't know, do nothing? I guess?
+                //maybe set it back to a preset location?
             }
         }
 
@@ -149,6 +178,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //LatLng sydney = new LatLng(-34, 151);
         //mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
         //mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
+        //^^this code was adding a permanent pin in Australia
         /*
         mMap.addMarker(new MarkerOptions()
                 .position(new LatLng(0, 0))
@@ -164,7 +194,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             @Override
             public void onMapClick(LatLng point) {
 
-                if (drawMode == 0) { //regular draw
+                if (drawMode == 0) { //regular draw (see lines 65 to 73)
                     Marker marker = mMap.addMarker(new MarkerOptions()
                             .position(point)
                             .rotation(30)
@@ -181,7 +211,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                     updateDistance();
 
-                } else if (drawMode == 2) { //insert
+                } else if (drawMode == 2) { //insert (see lines 65 to 73)
                     if (nodes.size() > 0) {
                         if (awaiting == 0) {
                             tempMarker = mMap.addMarker(new MarkerOptions()
@@ -332,8 +362,76 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
             }
         });
-    }
+    /////////////////////////////////////////stopwatch code VV///////////////////////////////////////////////////
+        start.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startTime = SystemClock.uptimeMillis();
+                handler.post(runnable);
 
+                isRunActive = !isRunActive;
+                if (isRunActive) {
+                    start.setImageResource(R.drawable.stop);
+                    pause.setVisibility(View.VISIBLE);
+                    time.setVisibility(View.VISIBLE);
+                    startTime = SystemClock.uptimeMillis();
+
+                    time.setText("00:00:00");
+                } else {
+                    start.setImageResource(R.drawable.new_play2);
+                    pause.setVisibility(View.INVISIBLE);
+                }
+            }
+        });
+
+        pause.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                timeBuff += MillisecTime;
+
+                pausePressed = !pausePressed;
+                if (pausePressed) {
+                    pause.setImageResource(R.drawable.play);
+
+                } else {
+                    pause.setImageResource(R.drawable.pause);
+                }
+
+                handler.removeCallbacks(runnable);
+                //reset.setEnabled(true);
+
+            }
+        });
+
+        /**     reset and lap button code
+        reset.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                MillisecTime = 0L;
+                startTime = 0L;
+                timeBuff = 0L;
+                updateTime = 0L;
+                seconds = 0;
+                minutes = 0;
+                milisec = 0;
+
+                time.setText("00:00:00");
+                listOfTimes_ArrayList.clear();
+                //adapter.notifyDataSetChanged();
+            }
+        });
+
+        lap.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                listOfTimes_ArrayList.add(time.getText().toString());
+                //adapter.notifyDataSetChanged();
+            }
+        });
+         */
+
+    }
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //Attempts to get the app permission to use location data.
     private void getLocationPermission() {
         /*
@@ -420,4 +518,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         TextView textView = findViewById(R.id.txt_distance);
         textView.setText(dist + " miles");
     }
+    ///////////////////more stopwatch code  vv/////////////////////////////////////////////////////////////////////////////////
+
+    public Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+            MillisecTime = SystemClock.uptimeMillis() - startTime;
+            updateTime = timeBuff + MillisecTime;
+            milisec = (int)(updateTime % 1000);
+            seconds = (int)(updateTime / 1000);
+            minutes = seconds /  60;
+            seconds = seconds % 60;
+
+            time.setText("" + minutes + ":" + seconds + ":" + milisec);
+            handler.postDelayed(this, 0);
+        }
+    };
+
+
+
 }
